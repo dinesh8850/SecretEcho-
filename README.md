@@ -40,12 +40,6 @@ Navigate to your backend directory (e.g., backend/).
 
 Bash
 
-Live Demo Try 
-You can try out SecretEcho AI live here: https://secret-echo-eight.vercel.app/
-
-
-
-
 # Install dependencies
 npm install
 
