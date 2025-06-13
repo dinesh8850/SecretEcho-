@@ -84,33 +84,7 @@ Click the speaker icon next to AI responses to hear them.
 New Chat: Click "New Chat" in the sidebar to start a fresh conversation.
 Past Chats: Your past conversations will appear in the sidebar. Click on any conversation to load its history.
 Logout: Use the "Logout" button in the sidebar to end your session.
-Project Structure (Conceptual)
-├── backend/
-│   ├── config/             # Database connection, Groq client
-│   ├── controllers/        # Logic for handling requests (chat, user auth)
-│   ├── models/             # Mongoose schemas (User, Conversation)
-│   ├── routes/             # API routes
-│   ├── middleware/         # Authentication middleware
-│   ├── .env                # Environment variables
-│   ├── package.json
-│   └── server.js           # Main backend entry point
-│
-├── frontend/
-│   ├── public/
-│   ├── src/
-│   │   ├── components/     # Reusable UI components (MessageInput, VoiceRecorder, etc.)
-│   │   ├── Context/        # React Context for global state (e.g., UserContext)
-│   │   ├── Screens/        # Pages (Login, Register, Home/ChatPage)
-│   │   ├── services/       # API interaction logic
-│   │   ├── config/         # Axios instance for backend calls
-│   │   ├── App.js          # Main React component, defines routes
-│   │   ├── index.js        # React app entry point
-│   │   └── index.css       # Tailwind CSS setup and custom styles
-│   ├── .env.development    # Frontend specific environment variables (if any)
-│   ├── package.json
-│   └── tailwind.config.js
-│
-└── README.md
+
 Contributing
 Feel free to fork the repository, open issues, or submit pull requests.
 
