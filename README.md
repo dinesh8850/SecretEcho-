@@ -40,7 +40,7 @@ Navigate to your backend directory (e.g., backend/).
 
 Bash
 
-Live Demo
+Live Demo Try 
 You can try out SecretEcho AI live here: https://secret-echo-eight.vercel.app/
 
 
