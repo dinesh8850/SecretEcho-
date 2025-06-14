@@ -1,0 +1,66 @@
+# docker-compose.yml
+
+version: '3.8' # Specify the Docker Compose file format version
+
+services:
+  # MongoDB Database Service
+  mongodb:
+    image: mongo:latest # Use the latest official MongoDB image
+    container_name: secretec_mongodb
+    ports:
+      - "27017:27017" # Map host port 27017 to container port 27017
+    volumes:
+      - mongodb_data:/data/db # Persist MongoDB data to a named volume
+    networks:
+      - secretec_network # Attach to our custom network
+
+  # Node.js Backend Service
+  backend:
+    build:
+      context: ./backend # Build from the Dockerfile.backend in the ./backend directory
+      dockerfile: Dockerfile.backend # Specify the custom Dockerfile name
+    container_name: secretec_backend
+    ports:
+      - "3000:3000" # Map host port 3000 to container port 3000 (your backend's port)
+    environment:
+      # Pass environment variables from your host's .env file directly
+      # Docker Compose looks for a .env file in the same directory as docker-compose.yml
+      MONGODB_URI: "mongodb://mongodb:27017/chatdb" # Connect to the 'mongodb' service within the Docker network
+      GROQ_API_KEY: "${GROQ_API_KEY}" # Read from your host's .env
+      JWT_SECRET: "${JWT_SECRET}" # Read from your host's .env
+      PORT: 3000 # Explicitly set port for backend server within container
+    depends_on:
+      - mongodb # Ensure MongoDB starts before the backend
+    networks:
+      - secretec_network
+    volumes:
+      - ./backend:/app # Mount the backend source code for development (live updates)
+      - /app/node_modules # Prevent host's node_modules from overwriting container's
+
+  # React Frontend Service
+  frontend:
+    build:
+      context: ./frontend # Build from the Dockerfile.frontend in the ./frontend directory
+      dockerfile: Dockerfile.frontend # Specify the custom Dockerfile name
+    container_name: secretec_frontend
+    ports:
+      - "5173:5173" # Map host port 5173 to container port 5173 (your React app's default dev port)
+    environment:
+      # VITE_API_URL should point to your backend service name within the Docker network
+      VITE_API_URL: "http://backend:3000" # Frontend should call 'backend' service
+    depends_on:
+      - backend # Ensure backend starts before frontend (optional, but good practice for API availability)
+    networks:
+      - secretec_network
+    volumes:
+      - ./frontend:/app # Mount the frontend source code for development (live updates)
+      - /app/node_modules # Prevent host's node_modules from overwriting container's
+
+# Named volumes for data persistence
+volumes:
+  mongodb_data:
+
+# Custom network for inter-service communication
+networks:
+  secretec_network:
+    driver: bridge # Default bridge network
