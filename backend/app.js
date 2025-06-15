@@ -5,10 +5,6 @@ import cookieParser from 'cookie-parser';
 import cors from 'cors';
 
 
-app.use(cors({
-  origin: "https://secretecho-p4ip.onrender.com",
-  credentials: true,
-}));
 
 // Routers
 import userRouter from './routes/user.routes.js';
