@@ -5,10 +5,10 @@ import cookieParser from 'cookie-parser';
 import cors from 'cors';
 
 
-app.use(cors({
-  origin: "https://secret-echo-pearl.vercel.app",
-  credentials: true,
-}));
+// app.use(cors({
+//   origin: "https://secret-echo-pearl.vercel.app",
+//   credentials: true,
+// }));
 
 // Routers
 import userRouter from './routes/user.routes.js';
