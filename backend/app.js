@@ -4,6 +4,12 @@ import connectDB from './db/db.js';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 
+
+app.use(cors({
+  origin: "https://secret-echo-pearl.vercel.app",
+  credentials: true,
+}));
+
 // Routers
 import userRouter from './routes/user.routes.js';
 import projectRouter from './routes/project.routes.js';
