@@ -615,7 +615,7 @@ const Home = () => {
 
         try {
             // UPDATED URL: Using userEmail as a path parameter
-            const response = await fetch(`http://127.0.0.1:3000/chat/conversations/${userEmail}`);
+            const response = await fetch(`https://secretecho-hg3i.onrender.com/chat/conversations/${userEmail}`);
             if (!response.ok) throw new Error(`HTTP error! ${response.status}`);
             const data = await response.json();
 
@@ -644,7 +644,7 @@ const Home = () => {
         setMessages([]); // Clear current messages while loading history
         try {
             // URL remains the same, as it only depends on conversation_id
-            const response = await fetch(`http://127.0.0.1:3000/chat/conversation/${convId}`);
+            const response = await fetch(`https://secretecho-hg3i.onrender.com/chat/conversation/${convId}`);
             if (!response.ok) throw new Error(`HTTP error! ${response.status}`);
             const data = await response.json();
 
@@ -708,7 +708,7 @@ const Home = () => {
 
         try {
             // Call your backend's chat endpoint
-            const response = await fetch('http://127.0.0.1:3000/chat', {
+            const response = await fetch('https://secretecho-hg3i.onrender.com/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
