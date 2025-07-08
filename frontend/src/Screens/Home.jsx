@@ -488,43 +488,42 @@
 // };
 
 // export default Home;
+// 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, Bot, User, CornerDownLeft, LogOut, Menu, Mic, Volume2, PlusCircle, MessageSquare } from 'lucide-react';
+import { Send, Bot, User, CornerDownLeft, LogOut, Menu, Mic, PlusCircle, MessageSquare, Image as ImageIcon } from 'lucide-react'; // Added ImageIcon
 import { useNavigate } from 'react-router-dom';
 
 const Home = () => {
     const navigate = useNavigate();
     const [messages, setMessages] = useState([
-        { role: 'assistant', content: 'Hello! How can I help you today?' }
+        { role: 'assistant', content: 'Hello! How can I help you today?', isImage: false } // Explicitly set isImage
     ]);
     const [inputValue, setInputValue] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const [conversationId, setConversationId] = useState(null); // The ID of the currently active conversation
+    const [conversationId, setConversationId] = useState(null);
     const [userEmail] = useState(() => localStorage.getItem('userEmail') || 'anonymous');
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [isListening, setIsListening] = useState(false);
-    const [conversations, setConversations] = useState([]); // List of past conversation summaries
-    const [selectedConversationId, setSelectedConversationId] = useState(null); // ID of the conversation selected in sidebar
+    const [conversations, setConversations] = useState([]);
+    const [selectedConversationId, setSelectedConversationId] = useState(null);
 
     const chatRef = useRef(null);
     const recognitionRef = useRef(null);
 
-    // --- NEW: Authentication Check ---
+    // --- Authentication Check ---
     useEffect(() => {
         const token = localStorage.getItem('token');
         if (!token) {
             console.warn("No authentication token found. Redirecting to login.");
-            navigate('/login'); // Redirect to your login page
+            navigate('/login');
         }
-        // This effect also runs when userEmail is updated, ensuring fetches are triggered correctly
-    }, [navigate]); // No userEmail in dependencies as it's set once from localStorage initially
+    }, [navigate]);
 
-    // If no token is found, render nothing or a loading state while redirecting
-    // This prevents the chat UI from flashing before the redirect
+    // This check ensures the component doesn't render if there's no token,
+    // preventing issues if navigate takes a moment to redirect.
     if (!localStorage.getItem('token')) {
-        return null; // Or return a loading spinner component
+        return null;
     }
-    // --- END NEW ---
 
     // Effect to scroll chat to bottom
     useEffect(() => {
@@ -539,8 +538,8 @@ const Home = () => {
         if (SpeechRecognition) {
             recognitionRef.current = new SpeechRecognition();
             recognitionRef.current.continuous = false; // Listen for a single utterance
-            recognitionRef.current.interimResults = false; // Only return final results
-            recognitionRef.current.lang = 'en-US'; // Set recognition language
+            recognitionRef.current.interimResults = false; // Only final results
+            recognitionRef.current.lang = 'en-US'; // Set language
 
             recognitionRef.current.onstart = () => {
                 setIsListening(true);
@@ -549,17 +548,20 @@ const Home = () => {
 
             recognitionRef.current.onresult = (event) => {
                 const transcript = event.results[0][0].transcript;
-                setInputValue(transcript); // Set input value to the recognized text
+                setInputValue(transcript);
                 setIsListening(false);
                 console.log('Transcript:', transcript);
+                // Optionally, automatically submit after voice input if desired
+                // handleSubmit({ preventDefault: () => {} });
             };
 
             recognitionRef.current.onerror = (event) => {
                 setIsListening(false);
                 console.error('Speech recognition error:', event.error);
                 if (event.error === 'not-allowed') {
-                    // This error occurs if microphone access is denied
                     alert('Microphone access denied. Please allow microphone access in your browser settings.');
+                } else {
+                    alert(`Speech recognition error: ${event.error}. Please try again.`);
                 }
             };
 
@@ -569,17 +571,19 @@ const Home = () => {
             };
         } else {
             console.warn('Speech Recognition not supported in this browser.');
+            // Disable mic button or show a message
         }
     }, []);
 
     // Functions for voice input
     const startListening = () => {
         if (recognitionRef.current && !isListening) {
+            setInputValue(''); // Clear previous input when starting to listen
             try {
                 recognitionRef.current.start();
             } catch (e) {
                 console.error("Error starting speech recognition:", e);
-                alert("Could not start microphone. Please check your browser's microphone permissions.");
+                alert("Could not start microphone. Please check your browser's microphone permissions or if another application is using it.");
                 setIsListening(false);
             }
         }
@@ -588,156 +592,197 @@ const Home = () => {
     const stopListening = () => {
         if (recognitionRef.current && isListening) {
             recognitionRef.current.stop();
-            setIsListening(false);
+            // setIsListening(false) is handled by onend event
         }
     };
 
-    // Function for text-to-speech output
-    const speakText = (text) => {
-        if ('speechSynthesis' in window) {
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = 'en-US'; // Set speech language
-            window.speechSynthesis.speak(utterance);
-        } else {
-            console.warn('Speech Synthesis not supported in this browser.');
-        }
+    // Helper function to detect image requests (for frontend cleaning)
+    const isImageRequestClient = (message) => { // Renamed to avoid conflict with backend's isImageRequest
+        const lowerCaseMessage = message.trim().toLowerCase();
+        return lowerCaseMessage.includes('/image') ||
+               lowerCaseMessage.includes('picture') ||
+               lowerCaseMessage.includes('draw') ||
+               lowerCaseMessage.includes('generate image'); // Added more common phrasing
     };
 
     // Fetches the list of all conversations for the user
     const fetchConversations = useCallback(async () => {
-        // --- UPDATED: Check if userEmail is valid before fetching ---
-        if (userEmail === 'anonymous') {
-            console.warn("Cannot fetch conversations: User email not found. Displaying anonymous chats.");
+        if (!userEmail || userEmail === 'anonymous') {
+            console.warn("Cannot fetch conversations: User email not found or is anonymous. Displaying anonymous chat only.");
             setConversations([]);
             return;
         }
-        // --- END UPDATED ---
 
         try {
-            // UPDATED URL: Using userEmail as a path parameter
-            const response = await fetch(`https://secretecho-hg3i.onrender.com/chat/conversations/${userEmail}`);
-            if (!response.ok) throw new Error(`HTTP error! ${response.status}`);
+            // Using template literals for URL construction
+            const response = await fetch(`http://127.0.0.1:3000/chat/conversations/${userEmail}`);
+            if (!response.ok) {
+                // More specific error for network issues vs. server errors
+                throw new Error(`Failed to fetch conversations: ${response.status} ${response.statusText}`);
+            }
             const data = await response.json();
 
-            // Map backend data to frontend's expected format (using last_message as title)
+            // Using the 'title' and 'has_image_as_title' from backend
             const formattedConversations = data.map(conv => ({
-                id: conv._id, // Use _id from MongoDB as the unique ID
-                title: conv.messages?.[0]?.content || `Chat on ${new Date(conv.created_at).toLocaleDateString()}`, // Use last_message as title
+                id: conv._id,
+                title: conv.title, // Now using the title provided by the backend
                 created_at: conv.created_at,
-                updated_at: conv.updated_at
+                updated_at: conv.updated_at,
+                has_image_as_title: conv.has_image_as_title // Prop from backend
             }));
             setConversations(formattedConversations);
 
-            // If no conversation is selected and there are past conversations, select the latest one
+            // If no conversation is currently selected, select the most recent one
             if (formattedConversations.length > 0 && !selectedConversationId) {
                 setSelectedConversationId(formattedConversations[0].id);
             }
         } catch (error) {
             console.error('Error fetching conversations:', error);
-            // Optionally, set an error message in the UI
+            // Optionally set an error state for UI display
         }
-    }, [userEmail, selectedConversationId]); // --- UPDATED: Added userEmail to dependency array ---
+    }, [userEmail, selectedConversationId]); // Depend on selectedConversationId to re-fetch if needed
 
     // Fetches all messages for a specific conversation
     const fetchMessagesForConversation = useCallback(async (convId) => {
         setIsLoading(true);
-        setMessages([]); // Clear current messages while loading history
+        setMessages([]); // Clear messages while loading new conversation
         try {
-            // URL remains the same, as it only depends on conversation_id
-            const response = await fetch(`https://secretecho-hg3i.onrender.com/chat/conversation/${convId}`);
-            if (!response.ok) throw new Error(`HTTP error! ${response.status}`);
+            const response = await fetch(`http://127.0.0.1:3000/chat/conversation/${convId}`);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch conversation history: ${response.status} ${response.statusText}`);
+            }
             const data = await response.json();
 
+            // Backend already provides 'messages' array directly, including 'isImage' and 'image' (base64) properties
             setMessages(data.messages);
-            setConversationId(data._id); // Ensure the internal conversationId is set
-            setSelectedConversationId(data._id); // Ensure the selected ID is set for UI highlighting
+            setConversationId(data._id); // Update the current conversation ID
+            setSelectedConversationId(data._id); // Ensure selected ID is in sync
         } catch (error) {
             console.error('Error fetching messages for conversation:', error);
-            setMessages([{ role: 'assistant', content: 'Could not load chat history for this conversation.' }]);
+            setMessages([{ role: 'assistant', content: 'Could not load chat history for this conversation. Please try a new chat.', isImage: false }]);
+            // Reset conversationId if loading failed
+            setConversationId(null);
+            setSelectedConversationId(null);
         } finally {
             setIsLoading(false);
         }
-    }, []);
+    }, []); // No specific dependencies that would cause infinite loop here, convId is passed as arg
 
-    // Effect to load conversations on component mount
+    // Effect to load conversations on component mount and when userEmail changes
     useEffect(() => {
-        // Only fetch conversations if a user email is available (i.e., not anonymous)
-        if (userEmail !== 'anonymous') {
+        if (userEmail && userEmail !== 'anonymous') {
             fetchConversations();
+        } else {
+            // For anonymous users, clear conversations and reset chat
+            setConversations([]);
+            // Avoid calling handleNewChat (which uses hooks) inside useEffect, just reset state directly
+            setSelectedConversationId(null);
+            setConversationId(null);
+            setMessages([{ role: 'assistant', content: 'Hello! How can I help you today?', isImage: false }]);
+            setInputValue('');
+            stopListening();
+            setSidebarOpen(false);
         }
-    }, [fetchConversations, userEmail]); // Added userEmail to dependencies for this effect too
+    }, [fetchConversations, userEmail]);
 
-    // Effect to load messages when a conversation is selected
+    // Effect to load messages when a conversation is selected (or deselected for new chat)
     useEffect(() => {
         if (selectedConversationId) {
             fetchMessagesForConversation(selectedConversationId);
         } else {
-            // If no conversation is selected (e.g., initial load or "New Chat" clicked)
-            setMessages([{ role: 'assistant', content: 'Hello! How can I help you today?' }]);
-            setConversationId(null); // Clear active conversation ID
+            // This path is for "New Chat" or when no conversation is selected
+            setMessages([{ role: 'assistant', content: 'Hello! How can I help you today?', isImage: false }]);
+            setConversationId(null); // Explicitly clear conversationId
         }
     }, [selectedConversationId, fetchMessagesForConversation]);
 
     // Handles starting a new chat session
     const handleNewChat = () => {
-        setSelectedConversationId(null); // Deselect any active conversation
-        setConversationId(null); // Clear the active conversation ID for new chat
-        setMessages([{ role: 'assistant', content: 'Hello! How can I help you today?' }]); // Reset messages
-        setInputValue(''); // Clear input
-        stopListening(); // Stop mic if active
-        setSidebarOpen(false); // Close sidebar on mobile after new chat
+        setSelectedConversationId(null); // Deselects any active conversation
+        setConversationId(null); // Clears the current conversation ID
+        setMessages([{ role: 'assistant', content: 'Hello! How can I help you today?', isImage: false }]);
+        setInputValue('');
+        stopListening(); // Stop any active listening session
+        setSidebarOpen(false); // Close sidebar on mobile
+        // Re-fetch conversations to ensure "New Chat" is not mistakenly seen as existing
+        fetchConversations();
     };
 
     // Handles selecting a conversation from the sidebar history
     const handleConversationSelect = (convId) => {
-        setSelectedConversationId(convId); // Set selected ID, which triggers message fetch
+        if (convId === selectedConversationId) {
+            setSidebarOpen(false); // Just close sidebar if same conv is clicked
+            return;
+        }
+        setSelectedConversationId(convId);
         setSidebarOpen(false); // Close sidebar on mobile
     };
 
     // Handles sending a message (text or voice)
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!inputValue.trim()) return;
+        const trimmedInputValue = inputValue.trim();
 
-        const userMessageContent = inputValue;
-        const userMessage = { role: 'user', content: userMessageContent };
-        setMessages(prev => [...prev, userMessage]); // Add user message to UI
-        setInputValue(''); // Clear input field
+        if (!trimmedInputValue) return; // Prevent sending empty messages
+
+        // Determine if it's an image request for frontend logic
+        const isImageReqClientFlag = isImageRequestClient(trimmedInputValue); // Use the renamed function
+
+        let messageToSendToBackend = trimmedInputValue;
+     
+        const userMessage = {
+            role: 'user',
+            content: trimmedInputValue,
+            isImageRequest: isImageReqClientFlag // Store this flag for user messages too
+        };
+        setMessages(prev => [...prev, userMessage]);
+        setInputValue(''); // Clear input after sending
         setIsLoading(true); // Show loading indicator
-        stopListening(); // Stop mic if active
+        stopListening(); // Stop listening if voice input was active
 
         try {
-            // Call your backend's chat endpoint
-            const response = await fetch('https://secretecho-hg3i.onrender.com/chat', {
+            const response = await fetch('http://127.0.0.1:3000/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    message: userMessageContent,
-                    user_email: userEmail, // Sending userEmail
+                    message: trimmedInputValue, // Send original message, backend cleans it
+                    user_email: userEmail,
                     conversation_id: conversationId, // Will be null for new chats
                 }),
             });
 
-            if (!response.ok) throw new Error(`HTTP error! ${response.status}`);
+            if (!response.ok) {
+                throw new Error(`Server responded with ${response.status}: ${response.statusText}`);
+            }
 
             const data = await response.json();
-            const botMessage = { role: 'assistant', content: data.response };
-            setMessages(prev => [...prev, botMessage]); // Add bot's response to UI
 
-            // If a new conversation was created by the backend, update conversationId and refresh history
+            // Process AI response: directly use `data.isImage` from backend
+            const botMessage = {
+                role: 'assistant',
+                content: data.response,
+                image: data.image, // Will be base64 string if an image
+                isImage: data.isImage || false // Rely on backend's boolean, default to false
+            };
+            setMessages(prev => [...prev, botMessage]);
+
+            // If it's a new conversation or the ID changed, update states and refetch sidebar
             if (data.conversation_id && data.conversation_id !== conversationId) {
                 setConversationId(data.conversation_id);
-                setSelectedConversationId(data.conversation_id); // Select the new conversation in sidebar
-                fetchConversations(); // Re-fetch conversation list to show the new chat
+                setSelectedConversationId(data.conversation_id); // Keep selected ID in sync
+                fetchConversations(); // Update sidebar with new conversation
+            } else {
+                // If it's an existing conversation, just update its 'updated_at' in the sidebar
+                // by re-fetching conversations, which will resort them correctly.
+                fetchConversations();
             }
-            speakText(data.response); // Speak the bot's response
         } catch (error) {
-            console.error('Fetch error:', error);
+            console.error('Fetch error during chat:', error);
             setMessages(prev => [...prev, {
                 role: 'assistant',
-                content: 'Oops! Something went wrong. Please try again.'
+                content: 'Oops! My connection to the mystic realms is disturbed. Please try again.',
+                isImage: false
             }]);
-            speakText('Oops! Something went wrong. Please try again.');
         } finally {
             setIsLoading(false); // Hide loading indicator
         }
@@ -745,10 +790,13 @@ const Home = () => {
 
     // Handles user logout
     const handleLogout = () => {
-        localStorage.removeItem('token'); // Clear token (if using local storage for auth)
-        localStorage.removeItem('userEmail'); // Clear user email from local storage on logout
-        navigate('/login'); // Redirect to login page
+        localStorage.removeItem('token');
+        localStorage.removeItem('userEmail');
+        navigate('/login');
     };
+
+    // Define trimmedInputValue for use in the render
+    const trimmedInputValue = inputValue.trim();
 
     return (
         <div className="flex h-screen text-white font-sans relative">
@@ -756,6 +804,7 @@ const Home = () => {
             <button
                 className="sm:hidden absolute top-4 left-4 z-20 bg-indigo-700 p-2 rounded-full shadow-lg"
                 onClick={() => setSidebarOpen(!sidebarOpen)}
+                aria-label="Toggle sidebar menu"
             >
                 <Menu className="w-5 h-5" />
             </button>
@@ -769,9 +818,8 @@ const Home = () => {
                     <div>
                         <h2 className="text-lg font-bold">SecretEcho AI</h2>
                         <p className="text-xs text-gray-300">Your Chat Assistant</p>
-                        {/* Display logged-in user's email */}
                         {userEmail !== 'anonymous' && (
-                            <p className="text-xs text-gray-400 mt-1">Logged in as: {userEmail}</p>
+                            <p className="text-xs text-gray-400 mt-1 truncate max-w-[150px]" title={userEmail}>Logged in as: {userEmail}</p>
                         )}
                     </div>
                 </div>
@@ -789,7 +837,9 @@ const Home = () => {
                 <div className="flex-1 overflow-y-auto pr-2">
                     <h3 className="text-sm font-semibold text-gray-300 mb-3 uppercase">Past Chats</h3>
                     {conversations.length === 0 ? (
-                        <p className="text-gray-400 text-sm">No past chats yet for {userEmail !== 'anonymous' ? userEmail : 'anonymous users'}.</p>
+                        <p className="text-gray-400 text-sm">
+                            {userEmail !== 'anonymous' ? 'No past chats yet. Start a new conversation!' : 'No past chats. Messages for anonymous users are not saved.'}
+                        </p>
                     ) : (
                         <nav className="space-y-2">
                             {conversations.map((conv) => (
@@ -799,11 +849,13 @@ const Home = () => {
                                     className={`w-full text-left flex items-center gap-2 p-2 rounded-lg transition-colors duration-200
                                         ${selectedConversationId === conv.id ? 'bg-indigo-700 text-white' : 'hover:bg-indigo-700/50 text-gray-200'}`}
                                 >
-                                    <MessageSquare className="w-4 h-4" />
-                                    {/* Display the conversation title (last_message from backend) */}
-                                    <span className="text-sm truncate">
+                                    <MessageSquare className="w-4 h-4 flex-shrink-0" />
+                                    <span className="text-sm truncate flex-grow">
                                         {conv.title}
                                     </span>
+                                    {conv.has_image_as_title && (
+                                       <ImageIcon className="w-4 h-4 text-gray-400 ml-auto flex-shrink-0" title="Started with an image" />
+                                    )}
                                 </button>
                             ))}
                         </nav>
@@ -825,6 +877,7 @@ const Home = () => {
                 <div
                     className="sm:hidden fixed inset-0 bg-black bg-opacity-50 z-0"
                     onClick={() => setSidebarOpen(false)}
+                    aria-hidden="true" // Indicate it's for visual effect, not interactive
                 />
             )}
 
@@ -841,6 +894,7 @@ const Home = () => {
                     <button
                         onClick={handleLogout}
                         className="sm:hidden bg-red-500 hover:bg-red-600 p-2 rounded-full transition-colors duration-200"
+                        aria-label="Logout"
                     >
                         <LogOut className="w-5 h-5" />
                     </button>
@@ -856,30 +910,41 @@ const Home = () => {
                     ) : (
                         messages.map((msg, index) => (
                             <div
-                                key={index}
+                                key={index} // Consider using msg._id for better unique key if available in messages array
                                 className={`flex items-end gap-2 ${
                                     msg.role === 'user' ? 'justify-end' : 'justify-start'
                                 } animate-fade-in-up`}
                             >
                                 {msg.role === 'assistant' && (
                                     <>
-                                        <div className="w-8 h-8 bg-yellow-400 rounded-full flex items-center justify-center">
+                                        <div className="w-8 h-8 bg-yellow-400 rounded-full flex items-center justify-center flex-shrink-0">
                                             <Bot className="w-4 h-4 text-purple-900" />
                                         </div>
                                         <div
                                             className={`max-w-[80%] sm:max-w-md p-3 rounded-2xl text-sm shadow-lg
                                                 bg-gradient-to-br from-purple-500 to-pink-600 text-white rounded-bl-none`}
                                         >
-                                            <p className="whitespace-pre-wrap">{msg.content}</p>
+                                            {/* Image display logic (already correct) */}
+                                            {msg.isImage && msg.image ? (
+                                                <>
+                                                    {/* Display text content if present, above the image */}
+                                                    {msg.content && (
+                                                        <p className="whitespace-pre-wrap mb-2 text-gray-100 italic">
+                                                            {msg.content}
+                                                        </p>
+                                                    )}
+                                                    <img
+                                                        src={`data:image/png;base64,${msg.image}`} // Assuming PNG from Stability AI
+                                                        alt={msg.content || "Generated AI Image"} // Use content as alt text if available
+                                                        className="mt-2 rounded-lg max-w-full h-auto"
+                                                        style={{ maxWidth: '100%', height: 'auto' }} // Explicit styling for images
+                                                    />
+                                                </>
+                                            ) : (
+                                                // Regular text message
+                                                <p className="whitespace-pre-wrap">{msg.content}</p>
+                                            )}
                                         </div>
-                                        {/* Play audio button for assistant messages */}
-                                        <button
-                                            onClick={() => speakText(msg.content)}
-                                            className="bg-purple-700 hover:bg-purple-800 p-2 rounded-full text-white ml-1 transition-colors duration-200"
-                                            title="Listen to message"
-                                        >
-                                            <Volume2 className="w-4 h-4" />
-                                        </button>
                                     </>
                                 )}
                                 {msg.role === 'user' && (
@@ -890,7 +955,10 @@ const Home = () => {
                                         >
                                             <p className="whitespace-pre-wrap">{msg.content}</p>
                                         </div>
-                                        <div className="w-8 h-8 bg-green-400 rounded-full flex items-center justify-center">
+                                        {msg.isImageRequest && ( // <--- Added visual indicator for user's image requests
+                                            <ImageIcon className="w-4 h-4 text-gray-400 flex-shrink-0" title="Image request" />
+                                        )}
+                                        <div className="w-8 h-8 bg-green-400 rounded-full flex items-center justify-center flex-shrink-0">
                                             <User className="w-4 h-4 text-green-900" />
                                         </div>
                                     </>
@@ -920,29 +988,38 @@ const Home = () => {
                     >
                         {/* Microphone Button */}
                         <button
-                            type="button" // Important: type="button" to prevent form submission
+                            type="button"
                             onClick={isListening ? stopListening : startListening}
                             className={`p-2 rounded-full transition-colors duration-200 ${
                                 isListening ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-500 hover:bg-blue-600'
                             }`}
-                            disabled={isLoading}
-                            title={isListening ? "Stop listening" : "Start voice input"}
+                            disabled={isLoading || (recognitionRef.current === null)} // Disable if not supported
+                            title={isListening ? "Stop listening" : (recognitionRef.current ? "Start voice input" : "Voice input not supported")}
+                            aria-label={isListening ? "Stop voice input" : "Start voice input"}
                         >
                             <Mic className="w-4 h-4 text-white" />
                         </button>
 
                         <input
+                            id="chat-input" // Added ID for accessibility
                             type="text"
                             value={inputValue}
                             onChange={(e) => setInputValue(e.target.value)}
                             placeholder="Type or speak your message..."
                             className="flex-1 bg-transparent text-sm text-white placeholder-gray-300 focus:outline-none"
                             disabled={isLoading}
+                            aria-label="Type your message" // Added aria-label for accessibility
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) { // Allow Shift+Enter for new line
+                                    handleSubmit(e);
+                                }
+                            }}
                         />
                         <button
                             type="submit"
                             className="bg-yellow-400 hover:bg-yellow-300 disabled:bg-gray-400 rounded-full p-2 transition"
-                            disabled={isLoading || !inputValue.trim()}
+                            disabled={isLoading || !trimmedInputValue} // Use trimmedInputValue
+                            aria-label="Send message"
                         >
                             <Send className="w-4 h-4 text-purple-900" />
                         </button>
